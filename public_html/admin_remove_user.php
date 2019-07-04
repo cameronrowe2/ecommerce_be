@@ -17,7 +17,7 @@ if ($_SESSION['admin_id']) {
 
     $id = $_POST['id'];
 
-    $stmt = $mysqli->prepare("DELETE FROM products WHERE id = ?");
+    $stmt = $mysqli->prepare("DELETE FROM admin_users WHERE id = ?");
 
     $stmt->bind_param("s", $id);
 
@@ -29,7 +29,7 @@ if ($_SESSION['admin_id']) {
     $stmt->close();
 
     echo json_encode(["success" => true, "data" => [
-        "product_id" => $id
+        "admin_user_id" => $id
     ]]);
 } else {
     echo json_encode(["success" => false]);

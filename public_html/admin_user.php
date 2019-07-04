@@ -15,22 +15,31 @@ $_POST = json_decode($rest_json, true);
 
 if ($_SESSION['admin_id']) {
 
-    $id = $_POST['id'];
+    $admin_user_id = $_POST['id'];
 
-    $stmt = $mysqli->prepare("DELETE FROM products WHERE id = ?");
+    $stmt = $mysqli->prepare("SELECT id, name, email FROM admin_users WHERE id = ?");
 
-    $stmt->bind_param("s", $id);
+    $stmt->bind_param("i", $admin_user_id);
 
     if (!$stmt->execute()) {
         echo json_encode(["success" => false]);
         die();
     }
 
+    $stmt->bind_result($id, $name, $email);
+
+    $arr = [];
+    while ($stmt->fetch()) {
+        $arr = [
+            "id" => $id,
+            "name" => htmlspecialchars($name),
+            "email" => htmlspecialchars($email)
+        ];
+    }
+
     $stmt->close();
 
-    echo json_encode(["success" => true, "data" => [
-        "product_id" => $id
-    ]]);
+    echo json_encode(["success" => true, "data" => $arr]);
 } else {
     echo json_encode(["success" => false]);
 }
