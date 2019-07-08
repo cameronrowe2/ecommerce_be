@@ -15,7 +15,7 @@ $_POST = json_decode($rest_json, true);
 
 $product_id = $_POST['product_id'];
 
-$stmt = $mysqli->prepare("SELECT id, title, description, price, imageUrl, sku FROM products WHERE id = ?");
+$stmt = $mysqli->prepare("SELECT id, title, description, price, imageUrl, sku, weight, height, width, length FROM products WHERE id = ?");
 
 $stmt->bind_param("i", $product_id);
 
@@ -24,7 +24,7 @@ if (!$stmt->execute()) {
     die();
 }
 
-$stmt->bind_result($id, $title, $description, $price, $imageUrl, $sku);
+$stmt->bind_result($id, $title, $description, $price, $imageUrl, $sku, $weight, $height, $width, $length);
 
 $arr = [];
 while ($stmt->fetch()) {
@@ -34,7 +34,11 @@ while ($stmt->fetch()) {
         "description" => htmlspecialchars($description),
         "price" => htmlspecialchars($price),
         "imageUrl" => htmlspecialchars($imageUrl),
-        "sku" => htmlspecialchars($sku)
+        "sku" => htmlspecialchars($sku),
+        "weight" => $weight,
+        "height" => $height,
+        "width" => $width,
+        "length" => $length
     ];
 }
 

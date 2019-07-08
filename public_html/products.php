@@ -9,14 +9,14 @@ include_once '../resources/library/database.php';
 $database = new Database();
 $mysqli = $database->getConnection();
 
-$stmt = $mysqli->prepare("SELECT id, title, description, price, imageUrl, sku FROM products");
+$stmt = $mysqli->prepare("SELECT id, title, description, price, imageUrl, sku, weight, height, width, length FROM products");
 
 if (!$stmt->execute()) {
   echo json_encode(["success" => false]);
   die();
 }
 
-$stmt->bind_result($id, $title, $description, $price, $imageUrl, $sku);
+$stmt->bind_result($id, $title, $description, $price, $imageUrl, $sku, $weight, $height, $width, $length);
 
 $arr = [];
 while ($stmt->fetch()) {
@@ -26,7 +26,11 @@ while ($stmt->fetch()) {
     "description" => htmlspecialchars($description),
     "price" => htmlspecialchars($price),
     "imageUrl" => htmlspecialchars($imageUrl),
-    "sku" => htmlspecialchars($sku)
+    "sku" => htmlspecialchars($sku),
+    "weight" => $weight,
+    "height" => $height,
+    "width" => $width,
+    "length" => $length
   ];
 }
 

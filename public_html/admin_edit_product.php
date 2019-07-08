@@ -21,10 +21,14 @@ if ($_SESSION['admin_id']) {
     $imageUrl = $_POST['imageUrl'];
     $price = $_POST['price'];
     $sku = $_POST['sku'];
+    $weight = $_POST['weight'];
+    $height = $_POST['height'];
+    $width = $_POST['width'];
+    $length = $_POST['length'];
 
-    $stmt = $mysqli->prepare("UPDATE products SET title=?, description=?, imageUrl=?, price=?, sku=? WHERE id = ?");
+    $stmt = $mysqli->prepare("UPDATE products SET title=?, description=?, imageUrl=?, price=?, sku=?, weight=?, height=?, width=?, length=? WHERE id = ?");
 
-    $stmt->bind_param("sssdss", $title, $description, $imageUrl, $price, $sku, $id);
+    $stmt->bind_param("sssdsdiiis", $title, $description, $imageUrl, $price, $sku, $weight, $height, $width, $length, $id);
 
     if (!$stmt->execute()) {
         echo json_encode(["success" => false]);
@@ -39,7 +43,11 @@ if ($_SESSION['admin_id']) {
         "description" => $description,
         "price" => $price,
         "imageUrl" => $imageUrl,
-        "sku" => $sku
+        "sku" => $sku,
+        "weight" => $weight,
+        "height" => $height,
+        "width" => $width,
+        "length" => $length
     ]]);
 } else {
     echo json_encode(["success" => false]);
