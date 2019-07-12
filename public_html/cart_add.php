@@ -7,6 +7,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 
 include_once '../resources/library/database.php';
 include_once '../resources/library/cart.php';
+include_once '../resources/library/wishlist.php';
 
 $database = new Database();
 $mysqli = $database->getConnection();
@@ -14,70 +15,62 @@ $mysqli = $database->getConnection();
 $rest_json = file_get_contents("php://input");
 $_POST = json_decode($rest_json, true);
 
+$product_id = $_POST['product_id'];
+
 if ($_SESSION['id']) {
 
-    $product_id = $_POST['product_id'];
-
     // get cart id
-    $stmt = $mysqli->prepare("SELECT id FROM carts WHERE user_id = ?");
-
-    $stmt->bind_param("s", $_SESSION['id']);
-
-    if (!$stmt->execute()) {
-        echo json_encode(["success" => false]);
-        die();
-    }
-
-    $stmt->bind_result($cart_id);
-    $stmt->fetch();
-    $stmt->close();
+    $cart_id = cart::getCartId($mysqli, $_SESSION['id']);
 
     // existing product check
-    $stmt = $mysqli->prepare("SELECT quantity FROM carts, cart_items WHERE carts.user_id = ? AND carts.id = cart_items.cart_id AND cart_items.product_id = ?");
-
-    $stmt->bind_param("ss", $_SESSION['id'], $product_id);
-
-    if (!$stmt->execute()) {
-        echo json_encode(["success" => false]);
-        die();
-    }
-
-    $stmt->bind_result($quantity);
-    $stmt->fetch();
-    $stmt->close();
+    $quantity = cart::getProductQuantity($mysqli, $_SESSION['id'], $product_id);
 
     if ($quantity == null) {
         $quantity = 1;
 
         // add row
-        $stmt = $mysqli->prepare("INSERT INTO cart_items (cart_id, product_id, quantity)  VALUES (?, ?, ?)");
-
-        $stmt->bind_param("ssi", $cart_id, $product_id, $quantity);
-
-        if (!$stmt->execute()) {
-            echo json_encode(["success" => false]);
-            die();
-        }
-
-        $stmt->close();
+        cart::addProduct($mysqli, $cart_id, $product_id, $quantity);
     } else {
         // add 1 more
         $quantity++;
 
-        $stmt = $mysqli->prepare("UPDATE cart_items SET quantity=? WHERE product_id = ? AND cart_id = ?");
-
-        $stmt->bind_param("iss", $quantity, $product_id, $cart_id);
-
-        if (!$stmt->execute()) {
-            echo json_encode(["success" => false]);
-            die();
-        }
-        $stmt->close();
+        // increment product
+        cart::incrementProduct($mysqli, $quantity, $product_id, $cart_id);
     }
+
+    // get wishlist id
+    $wishlist_id = wishlist::getWishlistId($mysqli, $_SESSION['id']);
+
+    // delete from wishlist
+    wishlist::removeProduct($mysqli, $wishlist_id, $product_id);
 
     $data = cart::get($mysqli, $cart_id);
 
     echo json_encode(["success" => true, "data" => $data]);
 } else {
-    echo json_encode(["success" => false]);
+    // echo json_encode(["success" => false]);
+    $cookie = isset($_COOKIE['cart_items_cookie']) ? $_COOKIE['cart_items_cookie'] : "";
+    $cookie = stripslashes($cookie);
+    $saved_cart_items = json_decode($cookie, true);
+
+    // if $saved_cart_items is null, prevent null error
+    if (!$saved_cart_items) {
+        $saved_cart_items = array();
+    }
+
+    if (isset($saved_cart_items[$product_id])) {
+        $saved_cart_items[$product_id]['quantity']++;
+    } else {
+        $saved_cart_items[$product_id]['quantity'] = 1;
+    }
+
+    // put item to cookie
+    $json = json_encode($saved_cart_items, true);
+    setcookie("cart_items_cookie", $json, time() + (86400 * 30), '/'); // 86400 = 1 day
+    $_COOKIE['cart_items_cookie'] = $json;
+
+
+    $data = cart::getFromCookie($mysqli, $saved_cart_items);
+
+    echo json_encode(["success" => true, "data" => $data]);
 }

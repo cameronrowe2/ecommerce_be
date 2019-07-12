@@ -14,69 +14,54 @@ $mysqli = $database->getConnection();
 $rest_json = file_get_contents("php://input");
 $_POST = json_decode($rest_json, true);
 
+$product_id = $_POST['product_id'];
+
 if ($_SESSION['id']) {
 
-    $product_id = $_POST['product_id'];
-
     // get cart id
-    $stmt = $mysqli->prepare("SELECT id FROM carts WHERE user_id = ?");
-
-    $stmt->bind_param("s", $_SESSION['id']);
-
-    if (!$stmt->execute()) {
-        echo json_encode(["success" => false]);
-        die();
-    }
-
-    $stmt->bind_result($cart_id);
-    $stmt->fetch();
-    $stmt->close();
+    $cart_id = cart::getCartId($mysqli, $_SESSION['id']);
 
     // existing product check
-    $stmt = $mysqli->prepare("SELECT quantity FROM carts, cart_items WHERE carts.user_id = ? AND carts.id = cart_items.cart_id AND cart_items.product_id = ?");
-
-    $stmt->bind_param("ss", $_SESSION['id'], $product_id);
-
-    if (!$stmt->execute()) {
-        echo json_encode(["success" => false]);
-        die();
-    }
-
-    $stmt->bind_result($quantity);
-    $stmt->fetch();
-    $stmt->close();
+    $quantity = cart::getProductQuantity($mysqli, $_SESSION['id'], $product_id);
 
     if ($quantity == 1) {
-
-        // remove row
-        $stmt = $mysqli->prepare("DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?");
-
-        $stmt->bind_param("ss", $cart_id, $product_id);
-
-        if (!$stmt->execute()) {
-            echo json_encode(["success" => false]);
-            die();
-        }
-
-        $stmt->close();
+        cart::removeProduct($mysqli, $cart_id, $product_id);
     } else if ($quantity > 1) {
         // decrement 1
         $quantity--;
 
-        $stmt = $mysqli->prepare("UPDATE cart_items SET quantity=? WHERE product_id = ? AND cart_id = ?");
-
-        $stmt->bind_param("iss", $quantity, $product_id, $cart_id);
-
-        if (!$stmt->execute()) {
-            echo json_encode(["success" => false]);
-            die();
-        }
-        $stmt->close();
+        cart::decrementProduct($mysqli, $quantity, $product_id, $cart_id);
     }
 
     $data = cart::get($mysqli, $cart_id);
 
     echo json_encode(["success" => true, "data" => $data]);
 } else {
-    echo json_encode(["success" => false]);
+    // echo json_encode(["success" => false]);
+    $cookie = isset($_COOKIE['cart_items_cookie']) ? $_COOKIE['cart_items_cookie'] : "";
+    $cookie = stripslashes($cookie);
+    $saved_cart_items = json_decode($cookie, true);
+
+    // if $saved_cart_items is null, prevent null error
+    if (!$saved_cart_items) {
+        $saved_cart_items = array();
+    }
+
+    if (isset($saved_cart_items[$product_id])) {
+        if ($saved_cart_items[$product_id]['quantity'] == 1) {
+            unset($saved_cart_items[$product_id]);
+        } else {
+            $saved_cart_items[$product_id]['quantity']--;
+        }
+    }
+
+    // put item to cookie
+    $json = json_encode($saved_cart_items, true);
+    setcookie("cart_items_cookie", $json, time() + (86400 * 30), '/'); // 86400 = 1 day
+    $_COOKIE['cart_items_cookie'] = $json;
+
+
+    $data = cart::getFromCookie($mysqli, $saved_cart_items);
+
+    echo json_encode(["success" => true, "data" => $data]);
 }

@@ -6,6 +6,7 @@ header('Access-Control-Allow-Credentials: true');
 header("Access-Control-Allow-Headers: Content-Type");
 
 include_once '../resources/library/database.php';
+include_once '../resources/library/email.php';
 
 $database = new Database();
 $mysqli = $database->getConnection();
@@ -83,12 +84,14 @@ if ($password != $password2) {
 //     die();
 // }
 
+$email_hash = md5(rand(0, 1000));
+
 // hash password
 $hash = password_hash($password, PASSWORD_DEFAULT);
 
-$stmt = $mysqli->prepare("INSERT INTO users (email, password, name)  VALUES (?, ?, ?)");
+$stmt = $mysqli->prepare("INSERT INTO users (email, password, name, email_hash)  VALUES (?, ?, ?, ?)");
 
-$stmt->bind_param("sss", $email, $hash, $name);
+$stmt->bind_param("ssss", $email, $hash, $name, $email_hash);
 
 if (!$stmt->execute()) {
     echo json_encode(["success" => false]);
@@ -98,8 +101,56 @@ $user_id = $stmt->insert_id;
 
 $stmt->close();
 
+if (!email::sendVerificationEmail($email, $email_hash)) {
+    echo json_encode(["success" => false]);
+}
+
 // create cart
 $stmt = $mysqli->prepare("INSERT INTO carts (user_id)  VALUES (?)");
+
+$stmt->bind_param("s", $user_id);
+
+if (!$stmt->execute()) {
+    echo json_encode(["success" => false]);
+    die();
+}
+
+$cart_id = $stmt->insert_id;
+
+$stmt->close();
+
+// move cookie cart to db cart
+$cookie = isset($_COOKIE['cart_items_cookie']) ? $_COOKIE['cart_items_cookie'] : "";
+$cookie = stripslashes($cookie);
+$saved_cart_items = json_decode($cookie, true);
+
+// if $saved_cart_items is null, prevent null error
+if (!$saved_cart_items) {
+    $saved_cart_items = array();
+}
+
+foreach ($saved_cart_items as $product_id => $value) {
+
+    // add row
+    $stmt = $mysqli->prepare("INSERT INTO cart_items (cart_id, product_id, quantity)  VALUES (?, ?, ?)");
+
+    $stmt->bind_param("ssi", $cart_id, $product_id, $value['quantity']);
+
+    if (!$stmt->execute()) {
+        echo json_encode(["success" => false]);
+        die();
+    }
+
+    $stmt->close();
+}
+
+// clear cookie
+$json = json_encode([], true);
+setcookie("cart_items_cookie", $json, time() + (86400 * 30), '/'); // 86400 = 1 day
+$_COOKIE['cart_items_cookie'] = $json;
+
+// create wishlist
+$stmt = $mysqli->prepare("INSERT INTO wishlists (user_id)  VALUES (?)");
 
 $stmt->bind_param("s", $user_id);
 
